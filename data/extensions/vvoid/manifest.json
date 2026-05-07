@@ -1,0 +1,13 @@
+{
+    "name": "vvoid",
+    "version": "1.0.0",
+    "description": "Audio playback and mixing extension using pygame",
+    "author": "Scene Server",
+    "dependencies": {
+        "python": ">=3.8",
+        "packages": ["pygame>=2.0.0"]
+    },
+    "api_prefix": "/audio",
+    "enabled": true,
+    "auto_start": true
+}

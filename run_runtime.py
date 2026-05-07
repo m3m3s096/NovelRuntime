@@ -6,6 +6,7 @@ from pathlib import Path
 from PyQt5.QtCore import QUrl
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtWebEngineWidgets import QWebEngineView
+from data.extensions.extension_manager import ExtensionManager
 
 app = Flask(__name__)
 
@@ -270,14 +271,24 @@ def run_flask():
     
     app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
 
+def run_extensions():
+        """Запуск менеджера расширений"""
+        extensions_dir = BASE_DIR / 'data' / 'extensions'
+        ext_manager = ExtensionManager(extensions_dir, BASE_DIR)
+        ext_manager.start_server()
+
+
 if __name__ == '__main__':
-    # Проверяем аргументы командной строки
     if len(sys.argv) > 1 and sys.argv[1] == '--newproject':
         create_project_structure()
     else:
         # Запускаем Flask в отдельном потоке
         flask_thread = threading.Thread(target=run_flask, daemon=True)
         flask_thread.start()
+        
+        # Запускаем менеджер расширений в отдельном потоке
+        extensions_thread = threading.Thread(target=run_extensions, daemon=True)
+        extensions_thread.start()
         
         # Запускаем Qt приложение
         qt_app = QApplication(sys.argv)

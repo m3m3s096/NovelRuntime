@@ -1,18 +1,60 @@
 from flask import Flask, render_template, send_from_directory, abort, render_template_string
 import os
+import sys
+import threading
 from pathlib import Path
-from werkzeug.utils import secure_filename
+from PyQt5.QtCore import QUrl
+from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtWebEngineWidgets import QWebEngineView
 
 app = Flask(__name__)
 
-# Базовые пути
-TEMPLATES_DIR = Path('/data/scenes/templates')
-ASSETS_DIR = Path('/data/scenes/assets')
+# Базовые пути - теперь относительно скрипта
+BASE_DIR = Path(__file__).parent  # Папка, где лежит скрипт
+TEMPLATES_DIR = BASE_DIR / 'data' / 'scenes' / 'templates'
+ASSETS_DIR = BASE_DIR / 'data' / 'scenes' / 'assets'
 
 # Настройка путей для Flask
 app.template_folder = str(TEMPLATES_DIR)
 app.static_folder = str(ASSETS_DIR)
 app.static_url_path = '/assets'
+
+def create_project_structure():
+    """Создание структуры проекта с необходимыми папками"""
+    directories = [
+        TEMPLATES_DIR,
+        ASSETS_DIR,
+        ASSETS_DIR / 'css',
+        ASSETS_DIR / 'js',
+        ASSETS_DIR / 'images',
+        ASSETS_DIR / 'fonts',
+        ASSETS_DIR / 'audio',
+        ASSETS_DIR / 'video',
+    ]
+    
+    print("Creating project structure...")
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
+        print(f"Created: {directory}")
+    
+    # Создаем пустой index.html
+    index_html = TEMPLATES_DIR / 'index.html'
+    if not index_html.exists():
+        index_html.write_text("""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene</title>
+</head>
+<body>
+    <h1>Scene Project</h1>
+    <p>Welcome to your new scene project!</p>
+</body>
+</html>""")
+        print(f"Created: {index_html}")
+    
+    print("✅ Project created successfully!")
 
 def get_all_html_files():
     """Рекурсивно получить все HTML файлы"""
@@ -35,7 +77,12 @@ def get_all_asset_files():
 
 @app.route('/')
 def index():
-    """Главная страница с навигацией"""
+    """Главная страница - сразу отдает index.html"""
+    # Проверяем, есть ли index.html
+    if (TEMPLATES_DIR / 'index.html').exists():
+        return render_template('index.html')
+    
+    # Если index.html нет, показываем навигацию
     templates = get_all_html_files()
     assets = get_all_asset_files()
     
@@ -189,17 +236,51 @@ def page_not_found(e):
         </html>
     """), 404
 
-if __name__ == '__main__':
-    # Создаем директории если их нет
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Scene Server")
+        self.setGeometry(100, 100, 1200, 800)
+        
+        # Создаем WebEngine view
+        self.web_view = QWebEngineView()
+        self.setCentralWidget(self.web_view)
+        
+        # Загружаем index.html напрямую, если он существует
+        index_path = TEMPLATES_DIR / 'index.html'
+        if index_path.exists():
+            self.web_view.load(QUrl.fromLocalFile(str(index_path)))
+        else:
+            self.web_view.load(QUrl("http://127.0.0.1:5000"))
+
+def run_flask():
+    """Запуск Flask в отдельном потоке"""
+    # Создаем директории если их нет (только базовые)
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     
     print("=" * 50)
     print("Scene Server Starting...")
+    print(f"Base dir: {BASE_DIR}")
     print(f"Templates: {TEMPLATES_DIR}")
     print(f"Assets: {ASSETS_DIR}")
     print(f"Found {len(get_all_html_files())} templates")
     print(f"Found {len(get_all_asset_files())} assets")
     print("=" * 50)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=False, use_reloader=False)
+
+if __name__ == '__main__':
+    # Проверяем аргументы командной строки
+    if len(sys.argv) > 1 and sys.argv[1] == '--newproject':
+        create_project_structure()
+    else:
+        # Запускаем Flask в отдельном потоке
+        flask_thread = threading.Thread(target=run_flask, daemon=True)
+        flask_thread.start()
+        
+        # Запускаем Qt приложение
+        qt_app = QApplication(sys.argv)
+        window = MainWindow()
+        window.show()
+        sys.exit(qt_app.exec_())
